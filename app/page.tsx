@@ -15,6 +15,7 @@ import { GrSend } from "react-icons/gr";
 import QRCodeStyling, { Options } from "qr-code-styling";
 import {QRCodeCanvas} from 'qrcode.react';
 import Link from "next/link";
+import { Footer } from "@/components/footer";
 
 
 export default function EventsPage() {
@@ -22,9 +23,9 @@ export default function EventsPage() {
   const { user, isTelegram, webApp, devMode: telegramDevMode } = useTelegramWebApp()
   const [events, setEvents] = useState<EventType[]>([])
   const [calendarAuthIssue, setCalendarAuthIssue] = useState<string | null>(null)
-  // Su Telegram, iniziamo sempre come autorizzati
-  const [isAuthorized, setIsAuthorized] = useState<boolean | null>(isTelegram ? true : null)
-  const [checkingAuth, setCheckingAuth] = useState(!isTelegram) // Su Telegram non controlliamo
+  // Su Telegram, iniziamo sempre come autorizzati e saltiamo il passaggio di connessione
+  const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null)
+  const [checkingAuth, setCheckingAuth] = useState(true)
   const [devMode, setDevMode] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false);
   const [checkingAdmin, setCheckingAdmin] = useState(false);
@@ -146,8 +147,9 @@ export default function EventsPage() {
 
   // Verifica autorizzazione
   useEffect(() => {
-    // Se siamo su Telegram, sempre autorizzato. Punto.
+    // Se siamo su Telegram, sempre autorizzato automaticamente
     if (isTelegram) {
+      console.log("🟢 Su Telegram - autorizzazione automatica");
       setIsAuthorized(true);
       setCheckingAuth(false);
       return;
@@ -171,25 +173,46 @@ export default function EventsPage() {
   }, [isTelegram]);
 
   useEffect(() => {
-    // Fetch eventi calendario
-    fetch("/api/calendar/events")
-      .then(async (res) => {
-        if (!res.ok) {
-          // Se mancano gli scope calendar, il server risponde 401 con un messaggio
+    // Auto-controllo dello stato di autenticazione Google quando siamo su Telegram
+    const checkGoogleAuth = async () => {
+      try {
+        const authRes = await fetch('/api/auth/status');
+        const authData = await authRes.json();
+        
+        if (!authData.hasTokens) {
+          // Se non ha token Google, mostra la schermata di onboarding Google
+          setCalendarAuthIssue("Connetti Google Calendar per sincronizzare i tuoi eventi.");
+          return;
+        }
+        
+        // Se ha i token, prova a caricare gli eventi
+        const eventsRes = await fetch("/api/calendar/events");
+        
+        if (!eventsRes.ok) {
           try {
-            const data = await res.json();
+            const data = await eventsRes.json();
             setCalendarAuthIssue(
               data?.message || "Autorizza l'accesso a Google Calendar per vedere gli eventi."
             );
           } catch {}
           setEvents([]);
-          return null;
+          return;
         }
-        const eventsData = await res.json();
+        
+        const eventsData = await eventsRes.json();
         setEvents(eventsData);
-      })
-      .catch(() => setEvents([]));
-  }, []);
+        setCalendarAuthIssue(null);
+      } catch (error) {
+        console.error("Errore nel controllo auth Google:", error);
+        setEvents([]);
+      }
+    };
+
+    // Solo se siamo autorizzati (su Telegram o dev mode)
+    if (isAuthorized) {
+      checkGoogleAuth();
+    }
+  }, [isAuthorized]);
 
   // Se non siamo montati ancora, mostra un loader
   if (!mounted) {
@@ -285,44 +308,59 @@ export default function EventsPage() {
     }
 
     if (!isAuthorized) {
-      return (
-        <div className="p-6 bg-gray-50 min-h-screen flex flex-col items-center justify-center">
-          <div className="flex flex-col items-center justify-center mb-8">
-            <div className="bg-blue-300/40 p-2 mb-1.5 rounded-xl border border-blue-800">
-              <FaTelegramPlane size={32} className="mx-auto" color="darkblue" />
+      // Se non siamo su Telegram, mostra la schermata di connessione Telegram
+      if (!isTelegram) {
+        return (
+          <div className="p-6 bg-gray-50 min-h-screen flex flex-col items-center justify-center">
+            <div className="flex flex-col items-center justify-center mb-8">
+              <div className="bg-blue-300/40 p-2 mb-1.5 rounded-xl border border-blue-800">
+                <FaTelegramPlane size={32} className="mx-auto" color="darkblue" />
+              </div>
+              <h1 className="text-2xl font-bold mb-2">Connessione Richiesta</h1>
+              <p className="text-muted-foreground">
+                Connetti il tuo account Telegram per usare l'app.
+              </p>
             </div>
-            <h1 className="text-2xl font-bold mb-2">Connessione Richiesta</h1>
-            <p className="text-muted-foreground">
-              Connetti il tuo account Telegram per usare l'app.
-            </p>
-          </div>
-          {!isTelegram && (
             <div className="bg-blue-50 border border-dashed border-blue-200 max-w-sm rounded-xl p-4 text-sm text-blue-800">
               <p className="font-semibold mb-2"><RiInformation2Line /> Come accedere:</p>
               <p>Questa app funziona solo come Telegram Mini App. Apri l'app tramite Telegram.</p>
             </div>
-          )}
-          {isTelegram && user && (
-            <div className="bg-blue-50 border border-dashed border-blue-200 rounded-xl p-4 text-sm text-blue-800">
-              <p className="font-semibold mb-2">👋 Benvenuto, {user.first_name}!</p>
-              <p className="mb-2">Il tuo ID Telegram: <code className="bg-blue-100 px-2 py-1 rounded">{user.id}</code></p>
-              <p>Usa il pulsante "Connetti Telegram" qui sotto per iniziare.</p>
-            </div>
-          )}
-        </div>
-      );
+          </div>
+        );
+      }
+      
+      // Se siamo su Telegram ma non autorizzati, questo non dovrebbe mai accadere
+      // perché settiamo isAuthorized = true automaticamente per Telegram
+      return null;
     }
 
     if (calendarAuthIssue) {
       return (
-        <div className="mb-4 p-3 min-h-screen flex flex-col items-center justify-center">
-          <span className="text-2xl font-semibold tracking-tight mb-4">{calendarAuthIssue || 'Error'}</span>
-          <Button
-            onClick={() => router.push("/api/auth/google")}
-          >
-            <FaGoogle />
-            Connetti Google
-          </Button>
+        <div className="p-6 min-h-screen flex flex-col items-center justify-center">
+          <div className="flex flex-col items-center justify-center mb-8 max-w-sm text-center">
+            <div className="bg-green-100 p-3 mb-4 rounded-xl border border-green-300">
+              <FaGoogle size={32} className="mx-auto" color="#4285f4" />
+            </div>
+            <h1 className="text-2xl font-bold mb-2">
+              {isTelegram && user ? `👋 Ciao ${user.first_name}!` : "Benvenuto!"}
+            </h1>
+            <p className="text-muted-foreground mb-6">
+              {calendarAuthIssue}
+            </p>
+            <Button
+              onClick={() => router.push("/api/auth/google")}
+              size="lg"
+              className="w-full"
+            >
+              <FaGoogle />
+              Connetti Google Calendar
+            </Button>
+            {isTelegram && (
+              <p className="text-xs text-muted-foreground mt-4">
+                Questo passaggio è necessario solo la prima volta
+              </p>
+            )}
+          </div>
         </div>
       );
     }
@@ -367,10 +405,12 @@ export default function EventsPage() {
             </div>
           </nav>
           <div className="px-4">
-            <TelegramBanner devMode={devMode} />
+            {/* Rimuoviamo il TelegramBanner perché ora l'autenticazione Telegram è automatica */}
             <RemindersList events={events} />
           </div>
         </section>
+        
+        <Footer />
       </div>
     );
   };
