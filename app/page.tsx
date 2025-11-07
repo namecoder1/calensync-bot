@@ -65,18 +65,11 @@ export default function EventsPage() {
   });
 
   useEffect(() => {
+    // Non serve più controllare se l'utente è admin
+    // Qualsiasi utente Telegram può usare l'app
     if (user?.id && isTelegram) {
-      setCheckingAdmin(true);
-      fetch(`/api/auth/check-admin?userId=${user.id}`)
-        .then(res => res.json())
-        .then(data => {
-          setIsAdmin(data.isAdmin);
-          setCheckingAdmin(false);
-        })
-        .catch(() => {
-          setIsAdmin(false);
-          setCheckingAdmin(false);
-        });
+      setIsAdmin(true); // Tratta tutti gli utenti come admin per ora
+      setCheckingAdmin(false);
     }
   }, [user, isTelegram]);
 
@@ -151,34 +144,29 @@ export default function EventsPage() {
 
   // Verifica autorizzazione
   useEffect(() => {
-    // Verifica modalità dev e autorizzazione
-    const checkDevModeAndAuth = async () => {
+    // Se siamo su Telegram, sempre autorizzato. Punto.
+    if (isTelegram) {
+      setIsAuthorized(true);
+      setCheckingAuth(false);
+      return;
+    }
+    
+    // Se non siamo su Telegram, controlla solo dev mode
+    const checkDevMode = async () => {
       try {
         const devModeRes = await fetch('/api/dev-mode-check');
         const devModeData = await devModeRes.json();
         setDevMode(devModeData.devMode);
-
-        if (devModeData.devMode) {
-          setIsAuthorized(true);
-          setCheckingAuth(false);
-        } else if (isTelegram && user?.id) {
-          setCheckingAuth(true);
-          const authRes = await fetch(`/api/auth/check-admin?userId=${user.id}`);
-          const authData = await authRes.json();
-          setIsAuthorized(authData.isAdmin);
-          setCheckingAuth(false);
-        } else {
-          setCheckingAuth(false);
-          setIsAuthorized(false);
-        }
+        setIsAuthorized(devModeData.devMode);
       } catch {
-        setCheckingAuth(false);
+        setDevMode(false);
         setIsAuthorized(false);
       }
+      setCheckingAuth(false);
     };
 
-    checkDevModeAndAuth();
-  }, [user, isTelegram]);
+    checkDevMode();
+  }, [isTelegram]);
 
   useEffect(() => {
     // Fetch eventi calendario
@@ -298,12 +286,12 @@ export default function EventsPage() {
       return (
         <div className="p-6 bg-gray-50 min-h-screen flex flex-col items-center justify-center">
           <div className="flex flex-col items-center justify-center mb-8">
-            <div className="bg-red-300/40 p-2 mb-1.5 rounded-xl border border-red-800">
-              <MdOutlineLockPerson size={32} className="mx-auto" color="darkred" />
+            <div className="bg-blue-300/40 p-2 mb-1.5 rounded-xl border border-blue-800">
+              <FaTelegramPlane size={32} className="mx-auto" color="darkblue" />
             </div>
-            <h1 className="text-2xl font-bold mb-2">Accesso Negato</h1>
+            <h1 className="text-2xl font-bold mb-2">Connessione Richiesta</h1>
             <p className="text-muted-foreground">
-              Questa applicazione è riservata agli utenti autorizzati.
+              Connetti il tuo account Telegram per usare l'app.
             </p>
           </div>
           {!isTelegram && (
@@ -313,10 +301,10 @@ export default function EventsPage() {
             </div>
           )}
           {isTelegram && user && (
-            <div className="bg-yellow-50 border border-dashed border-yellow-200 rounded-xl p-4 text-sm text-yellow-800">
-              <p className="font-semibold mb-2">⚠️ Utente non autorizzato</p>
-              <p className="mb-2">Il tuo ID Telegram: <code className="bg-yellow-100 px-2 py-1 rounded">{user.id}</code></p>
-              <p>Contatta l'amministratore per richiedere l'accesso.</p>
+            <div className="bg-blue-50 border border-dashed border-blue-200 rounded-xl p-4 text-sm text-blue-800">
+              <p className="font-semibold mb-2">👋 Benvenuto, {user.first_name}!</p>
+              <p className="mb-2">Il tuo ID Telegram: <code className="bg-blue-100 px-2 py-1 rounded">{user.id}</code></p>
+              <p>Usa il pulsante "Connetti Telegram" qui sotto per iniziare.</p>
             </div>
           )}
         </div>
