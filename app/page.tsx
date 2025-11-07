@@ -393,7 +393,7 @@ export default function EventsPage() {
       try {
         const res = await fetch('/api/user/calendars/selection', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ items })
+          body: JSON.stringify({ items, userId: user.id })
         })
       const data = await res.json()
       if (!res.ok || !data.ok) throw new Error(data.error || 'Errore salvataggio selezione')
