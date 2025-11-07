@@ -390,6 +390,7 @@ export default function EventsPage() {
       toast.warning('Seleziona almeno un calendario')
       return
     }
+    console.log('Calendars sent to backend:', items)
       try {
         const res = await fetch('/api/user/calendars/selection', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },

@@ -18,6 +18,7 @@ async function handler(req: NextRequest, userId: string) {
 
   let body: any = null;
   try { body = await req.json(); } catch {}
+  console.log('Body ricevuto dal frontend:', body)
   const items = (body?.items || []) as CalendarSelectionItem[];
   if (!Array.isArray(items) || items.length === 0) {
     return NextResponse.json({ ok: false, error: 'items array required' }, { status: 400 });
