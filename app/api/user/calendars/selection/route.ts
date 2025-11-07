@@ -16,8 +16,23 @@ async function handler(req: NextRequest, userId: string) {
 
   const supabase = await createClient();
 
+  // Logga headers
+  console.log('Headers ricevuti:', Object.fromEntries(req.headers.entries()));
+  // Logga raw body
   let body: any = null;
-  try { body = await req.json(); } catch {}
+  try {
+    const rawBody = await req.text();
+    console.log('Raw body ricevuto:', rawBody);
+    // Prova a fare il parse
+    try {
+      body = JSON.parse(rawBody);
+    } catch {
+      body = null;
+    }
+  } catch {
+    body = null;
+  }
+  console.log('Body ricevuto dal frontend:', body);
   console.log('Body ricevuto dal frontend:', body)
   const items = (body?.items || []) as CalendarSelectionItem[];
   if (!Array.isArray(items) || items.length === 0) {
