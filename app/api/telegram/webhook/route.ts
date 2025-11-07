@@ -72,6 +72,7 @@ async function handleHelpCommand(chatId: number): Promise<void> {
 
 /start - Avvia il bot e mostra il messaggio di benvenuto
 /help - Mostra questo menu di aiuto
+/register - Registra questo gruppo per i promemoria
 
 🔗 Mini App:
 Per usare tutte le funzionalità, apri la Mini App di CalenSync dal menu del bot.
@@ -147,6 +148,7 @@ async function handleUnknownCommand(chatId: number, command: string): Promise<vo
 📋 Comandi disponibili:
 /start - Avvia il bot
 /help - Mostra l'aiuto
+/register - Registra questo gruppo per i promemoria
 
 💡 Suggerimento:
 Per usare tutte le funzionalità, apri la Mini App dal menu del bot!`;
@@ -217,6 +219,7 @@ Apri la Mini App dal menu del bot per accedere a tutte le funzionalità.
 
 ❓ **Comandi disponibili:**
 /start - Messaggio di benvenuto
+/register - Registra questo gruppo per i promemoria
 /help - Mostra l'aiuto`;
 
       await sendTelegramMessage(chatId.toString(), message);
