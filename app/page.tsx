@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from "react"
 import { MdOutlineLockPerson } from "react-icons/md";
 import { EventType } from "@/types"
+import { useGoogleEvents } from "@/lib/useGoogleEvents";
 import { FaGoogle, FaTelegramPlane } from "react-icons/fa";
 import { useRouter } from "next/navigation";
 import { TbReload} from "react-icons/tb";
@@ -11,6 +12,7 @@ import RemindersList from "@/components/blocks/reminders-list";
 import { useTelegramWebApp } from "@/lib/useTelegramWebApp";
 import { RiInformation2Line } from "react-icons/ri";
 import { Button } from "@/components/ui/button";
+import { Alert } from "@/components/ui/alert";
 import { GrSend } from "react-icons/gr";
 import QRCodeStyling, { Options } from "qr-code-styling";
 import {QRCodeCanvas} from 'qrcode.react';
@@ -20,11 +22,12 @@ import { Footer } from "@/components/footer";
 
 export default function EventsPage() {
   const router = useRouter()
-  const { user, isTelegram, webApp, devMode: telegramDevMode } = useTelegramWebApp()
-  const [events, setEvents] = useState<EventType[]>([])
-  const [calendarAuthIssue, setCalendarAuthIssue] = useState<string | null>(null)
+  const { user, isTelegram, webApp, devMode: telegramDevMode, sdkTimeoutExceeded } = useTelegramWebApp()
   // Su Telegram, iniziamo sempre come autorizzati e saltiamo il passaggio di connessione
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null)
+  // Spostata la logica di caricamento eventi nel custom hook useGoogleEvents
+  const { events, loading: eventsLoading, error: eventsError, calendarAuthIssue, retry: retryEvents } = useGoogleEvents(!!isAuthorized);
+  const [telegramAuthError, setTelegramAuthError] = useState<string | null>(null)
   const [checkingAuth, setCheckingAuth] = useState(true)
   const [telegramAuthDone, setTelegramAuthDone] = useState(false)
   const [devMode, setDevMode] = useState(false)
@@ -111,6 +114,13 @@ export default function EventsPage() {
     const autoAuthTelegram = async () => {
       if (!isTelegram || telegramAuthDone) return;
       if (!webApp?.initData || webApp.initData.length === 0) return;
+      // Evita chiamate ripetute se già fatto in questa sessione
+      if (typeof window !== 'undefined' && sessionStorage.getItem('tgAuthDone') === '1') {
+        setTelegramAuthDone(true);
+        setIsAuthorized(true);
+        setCheckingAuth(false);
+        return;
+      }
       try {
         const res = await fetch("/api/auth/telegram", {
           method: "POST",
@@ -122,12 +132,22 @@ export default function EventsPage() {
           const data = await res.json();
           if (!res.ok || !data?.ok) {
             console.warn("Auto Telegram auth failed:", data?.error || res.statusText);
+            setTelegramAuthError(data?.error || res.statusText || "Autenticazione Telegram fallita");
+          }
+          // Se siamo in bypass mode, mostriamo un avviso soft
+          if (data?.debug?.authMode === "BYPASS" || data?.warning) {
+            setTelegramAuthError(data?.warning || "Verifica firma non riuscita — sessione attivata in modalità ridotta.");
           }
         } catch {}
       } catch (e) {
         console.warn("Auto Telegram auth request error:", e);
+        setTelegramAuthError((e as Error)?.message || "Errore di rete nella richiesta di autenticazione Telegram");
       } finally {
         setTelegramAuthDone(true);
+        if (typeof window !== 'undefined') sessionStorage.setItem('tgAuthDone', '1');
+        // Considera utente autorizzato se siamo in Telegram, anche se l'endpoint fallisce
+        setIsAuthorized(true);
+        setCheckingAuth(false);
       }
     };
     autoAuthTelegram();
@@ -200,47 +220,7 @@ export default function EventsPage() {
     checkDevMode();
   }, [isTelegram]);
 
-  useEffect(() => {
-    // Auto-controllo dello stato di autenticazione Google quando siamo su Telegram
-    const checkGoogleAuth = async () => {
-      try {
-        const authRes = await fetch('/api/auth/status');
-        const authData = await authRes.json();
-        
-        if (!authData.hasTokens) {
-          // Se non ha token Google, mostra la schermata di onboarding Google
-          setCalendarAuthIssue("Connetti Google Calendar per sincronizzare i tuoi eventi.");
-          return;
-        }
-        
-        // Se ha i token, prova a caricare gli eventi
-        const eventsRes = await fetch("/api/calendar/events");
-        
-        if (!eventsRes.ok) {
-          try {
-            const data = await eventsRes.json();
-            setCalendarAuthIssue(
-              data?.message || "Autorizza l'accesso a Google Calendar per vedere gli eventi."
-            );
-          } catch {}
-          setEvents([]);
-          return;
-        }
-        
-        const eventsData = await eventsRes.json();
-        setEvents(eventsData);
-        setCalendarAuthIssue(null);
-      } catch (error) {
-        console.error("Errore nel controllo auth Google:", error);
-        setEvents([]);
-      }
-    };
-
-    // Solo se siamo autorizzati (su Telegram o dev mode)
-    if (isAuthorized) {
-      checkGoogleAuth();
-    }
-  }, [isAuthorized]);
+  // Rimossa logica duplicata di fetch eventi, ora delegata al hook.
 
   // Se non siamo montati ancora, mostra un loader
   if (!mounted) {
@@ -294,7 +274,7 @@ export default function EventsPage() {
   }
 
   // Aspettiamo che webApp sia caricato se siamo su Telegram
-  if (isTelegram && !webApp && !telegramDevMode) {
+  if (isTelegram && !webApp && !telegramDevMode && !sdkTimeoutExceeded) {
     return (
       <div className="p-6 min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -309,6 +289,19 @@ export default function EventsPage() {
             wrapperClass="mx-auto w-fit mb-4"
           />
           <p className="text-muted-foreground">Connessione a Telegram...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Se il SDK non arriva, mostra istruzioni invece del loader infinito
+  if (isTelegram && !webApp && sdkTimeoutExceeded) {
+    return (
+      <div className="p-6 min-h-screen flex items-center justify-center">
+        <div className="max-w-sm text-center">
+          <h1 className="text-xl font-semibold mb-2">Impossibile inizializzare Telegram</h1>
+          <p className="text-muted-foreground mb-4">Non riusciamo a caricare l'SDK della Mini App. Chiudi e riapri la Mini App da Telegram oppure aggiorna l'app Telegram.</p>
+          <Button onClick={() => window.location.reload()} variant="outline">Riprova</Button>
         </div>
       </div>
     );
@@ -335,44 +328,22 @@ export default function EventsPage() {
       );
     }
 
-    if (!isAuthorized) {
+    if (!isAuthorized && !isTelegram) {
       // Se non siamo su Telegram, mostra la schermata di connessione Telegram
-      if (!isTelegram) {
-        return (
-          <div className="p-6 bg-gray-50 min-h-screen flex flex-col items-center justify-center">
-            <div className="flex flex-col items-center justify-center mb-8">
-              <div className="bg-blue-300/40 p-2 mb-1.5 rounded-xl border border-blue-800">
-                <FaTelegramPlane size={32} className="mx-auto" color="darkblue" />
-              </div>
-              <h1 className="text-2xl font-bold mb-2">Connessione Richiesta</h1>
-              <p className="text-muted-foreground">
-                Connetti il tuo account Telegram per usare l'app.
-              </p>
-            </div>
-            <div className="bg-blue-50 border border-dashed border-blue-200 max-w-sm rounded-xl p-4 text-sm text-blue-800">
-              <p className="font-semibold mb-2"><RiInformation2Line /> Come accedere:</p>
-              <p>Questa app funziona solo come Telegram Mini App. Apri l'app tramite Telegram.</p>
-            </div>
-          </div>
-        );
-      }
-      
-      // Se siamo su Telegram ma non abbiamo ancora completato l'autorizzazione
-      // mostra un loader (evita schermata bianca in caso di race-condition)
       return (
-        <div className="p-6 min-h-screen flex items-center justify-center">
-          <div className="text-center">
-            <TailSpin
-              visible={true}
-              height="80"
-              width="80"
-              color="#1ca34d"
-              ariaLabel="tail-spin-loading"
-              radius="1"
-              wrapperStyle={{}}
-              wrapperClass="mx-auto w-fit mb-4"
-            />
-            <p className="text-muted-foreground">Connessione a Telegram in corso...</p>
+        <div className="p-6 bg-gray-50 min-h-screen flex flex-col items-center justify-center">
+          <div className="flex flex-col items-center justify-center mb-8">
+            <div className="bg-blue-300/40 p-2 mb-1.5 rounded-xl border border-blue-800">
+              <FaTelegramPlane size={32} className="mx-auto" color="darkblue" />
+            </div>
+            <h1 className="text-2xl font-bold mb-2">Connessione Richiesta</h1>
+            <p className="text-muted-foreground">
+              Connetti il tuo account Telegram per usare l'app.
+            </p>
+          </div>
+          <div className="bg-blue-50 border border-dashed border-blue-200 max-w-sm rounded-xl p-4 text-sm text-blue-800">
+            <p className="font-semibold mb-2"><RiInformation2Line /> Come accedere:</p>
+            <p>Questa app funziona solo come Telegram Mini App. Apri l'app tramite Telegram.</p>
           </div>
         </div>
       );
@@ -381,6 +352,11 @@ export default function EventsPage() {
     if (calendarAuthIssue) {
       return (
         <div className="p-6 min-h-screen flex flex-col items-center justify-center">
+          {telegramAuthError && (
+            <div className="max-w-sm w-full mb-4">
+              <Alert variant="warning">{telegramAuthError}</Alert>
+            </div>
+          )}
           <div className="flex flex-col items-center justify-center mb-8 max-w-sm text-center">
             <div className="bg-green-100 p-3 mb-4 rounded-xl border border-green-300">
               <FaGoogle size={32} className="mx-auto" color="#4285f4" />
@@ -399,6 +375,12 @@ export default function EventsPage() {
               <FaGoogle />
               Connetti Google Calendar
             </Button>
+            {eventsError && (
+              <div className="mt-4 w-full"><Alert variant="error">{eventsError}</Alert></div>
+            )}
+            <div className="mt-4 w-full flex justify-center">
+              <Button variant="outline" onClick={retryEvents}>Riprova</Button>
+            </div>
             {isTelegram && (
               <p className="text-xs text-muted-foreground mt-4">
                 Questo passaggio è necessario solo la prima volta
@@ -411,6 +393,11 @@ export default function EventsPage() {
 
     return (
       <div>
+        {telegramAuthError && (
+          <div className="px-4 pt-4">
+            <Alert variant="warning">{telegramAuthError}</Alert>
+          </div>
+        )}
         {user ? (
           <section>
             <h2>Connessione con Telegram</h2>
@@ -449,7 +436,15 @@ export default function EventsPage() {
             </div>
           </nav>
           <div className="px-4">
-            {/* Rimuoviamo il TelegramBanner perché ora l'autenticazione Telegram è automatica */}
+            {eventsLoading && (
+              <div className="mb-4"><Alert variant="info">Caricamento eventi...</Alert></div>
+            )}
+            {eventsError && (
+              <div className="mb-4"><Alert variant="error">{eventsError}</Alert></div>
+            )}
+            {!eventsLoading && events.length === 0 && !eventsError && (
+              <div className="mb-4"><Alert variant="info">Nessun evento imminente trovato.</Alert></div>
+            )}
             <RemindersList events={events} />
           </div>
         </section>

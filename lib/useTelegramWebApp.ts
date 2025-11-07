@@ -89,6 +89,7 @@ export function useTelegramWebApp() {
   const [mounted, setMounted] = useState(false);
   const [devMode, setDevMode] = useState(false);
   const [devUser, setDevUser] = useState<TelegramUser | null>(null);
+  const [sdkTimeoutExceeded, setSdkTimeoutExceeded] = useState(false);
 
   // Check dev mode
   useEffect(() => {
@@ -112,6 +113,7 @@ export function useTelegramWebApp() {
     setMounted(true);
     let cancelled = false;
     let attempts = 0;
+    const maxAttempts = 80; // ~4s @ 50ms
 
     const initWith = (tg: TelegramWebApp) => {
       if (cancelled) return;
@@ -134,7 +136,11 @@ export function useTelegramWebApp() {
         cleanup = initWith(tg) || undefined;
         return;
       }
-      if (cancelled || attempts++ > 100) return; // ~5s @ 50ms
+      if (cancelled) return;
+      if (attempts++ > maxAttempts) {
+        setSdkTimeoutExceeded(true);
+        return;
+      }
       timer = setTimeout(poll, 50);
     };
 
@@ -164,5 +170,6 @@ export function useTelegramWebApp() {
     colorScheme,
     themeParams: webApp?.themeParams,
     devMode, // Esponi anche devMode per debugging
+    sdkTimeoutExceeded,
   } as const;
 }
