@@ -1,13 +1,27 @@
 import { google } from "googleapis";
-import { getGoogleTokens } from "@/lib/google-tokens";
+import { getGoogleTokens, getUserGoogleTokens } from "@/lib/google-tokens";
+import { NextRequest } from "next/server";
+import { isAuthorizedTelegramUser } from "@/lib/telegram-auth";
 
 // Evitiamo cache di Next su questo endpoint: vogliamo dati freschi
 export const dynamic = "force-dynamic";
 
-export async function GET(req: Request) {
+export async function GET(req: NextRequest) {
+  const urlTop = new URL(req.url);
+  const userId = urlTop.searchParams.get('userId');
   // Usa OAuth dell'utente (come per i Tasks) così possiamo leggere i defaultReminders
   // e vedere i promemoria effettivi esattamente come nella UI dell'utente.
-  const tokens = await getGoogleTokens();
+  let tokens = null as any;
+  if (userId) {
+    const ok = await isAuthorizedTelegramUser(userId);
+    if (!ok) {
+      return new Response(JSON.stringify({ error: "Not authorized" }), { status: 403 });
+    }
+    tokens = await getUserGoogleTokens(userId);
+  } else {
+    // fallback legacy
+    tokens = await getGoogleTokens();
+  }
   if (!tokens) {
     return new Response(
       JSON.stringify({

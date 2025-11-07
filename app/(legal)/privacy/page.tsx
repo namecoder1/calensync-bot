@@ -26,7 +26,7 @@ const PrivacyPage = () => {
             </p>
             <div className="flex items-center justify-center text-sm text-gray-500 mt-4">
               <Clock className="w-4 h-4 mr-1" />
-              Ultimo aggiornamento: 7 Novembre 2024
+              Ultimo aggiornamento: 7 Novembre 2025
             </div>
           </div>
         </div>
@@ -136,34 +136,40 @@ const PrivacyPage = () => {
               </div>
               <h2 className="text-2xl font-semibold text-gray-800">4. I Tuoi Diritti</h2>
             </div>
-            <p className="text-gray-600 mb-4">In conformità al GDPR, hai pieno controllo sui tuoi dati:</p>
-            
+            <p className="text-gray-600 mb-4">In conformità al GDPR, hai pieno controllo sui tuoi dati personali. Oltre ai diritti di accesso, modifica, cancellazione e revoca del consenso, puoi richiedere la portabilità dei dati e presentare reclamo al Garante Privacy.</p>
             <div className="grid md:grid-cols-2 gap-4">
               <div className="border border-gray-200 rounded-lg p-4">
                 <h3 className="font-medium text-gray-800 mb-2">Accesso ai Dati</h3>
-                <p className="text-sm text-gray-600">Richiedi una copia completa di tutti i tuoi dati personali</p>
+                <p className="text-sm text-gray-600">Richiedi una copia completa di tutti i tuoi dati personali.</p>
               </div>
               <div className="border border-gray-200 rounded-lg p-4">
                 <h3 className="font-medium text-gray-800 mb-2">Modifica/Correzione</h3>
-                <p className="text-sm text-gray-600">Aggiorna o correggi informazioni imprecise</p>
+                <p className="text-sm text-gray-600">Aggiorna o correggi informazioni imprecise.</p>
               </div>
               <div className="border border-gray-200 rounded-lg p-4">
                 <h3 className="font-medium text-gray-800 mb-2">Cancellazione</h3>
-                <p className="text-sm text-gray-600">Elimina definitivamente il tuo account e tutti i dati</p>
+                <p className="text-sm text-gray-600">Puoi eliminare definitivamente il tuo account e tutti i dati associati in qualsiasi momento tramite l'app o contattando il supporto. La cancellazione è irreversibile e viene eseguita entro 7 giorni dalla richiesta.</p>
               </div>
               <div className="border border-gray-200 rounded-lg p-4">
                 <h3 className="font-medium text-gray-800 mb-2">Revoca Consenso</h3>
-                <p className="text-sm text-gray-600">Interrompi l'utilizzo dei tuoi dati in qualsiasi momento</p>
+                <p className="text-sm text-gray-600">Interrompi l'utilizzo dei tuoi dati in qualsiasi momento.</p>
+              </div>
+              <div className="border border-gray-200 rounded-lg p-4">
+                <h3 className="font-medium text-gray-800 mb-2">Portabilità</h3>
+                <p className="text-sm text-gray-600">Richiedi la trasmissione dei tuoi dati personali in formato strutturato a un altro titolare.</p>
+              </div>
+              <div className="border border-gray-200 rounded-lg p-4">
+                <h3 className="font-medium text-gray-800 mb-2">Reclamo</h3>
+                <p className="text-sm text-gray-600">Puoi presentare reclamo all’Autorità Garante per la protezione dei dati personali.</p>
               </div>
             </div>
           </Card>
 
           {/* Sezioni rimanenti */}
           <Card className="p-6 shadow-lg hover:shadow-xl transition-shadow">
-            <h2 className="text-2xl font-semibold text-gray-800 mb-4">5. Aggiornamenti della Privacy</h2>
+            <h2 className="text-2xl font-semibold text-gray-800 mb-4">5. Policy di Retention e Aggiornamenti</h2>
             <p className="text-gray-600 mb-4">
-              Questa informativa potrebbe essere aggiornata periodicamente per riflettere modifiche al servizio o ai requisiti legali. 
-              Ti informeremo di qualsiasi cambiamento significativo tramite notifica nell'app.
+              I dati personali (token, log, configurazioni) vengono conservati solo per il tempo strettamente necessario all’erogazione del servizio e cancellati automaticamente dopo 12 mesi di inattività. Questa informativa può essere aggiornata periodicamente per riflettere modifiche al servizio o ai requisiti legali. Ti informeremo di qualsiasi cambiamento significativo tramite notifica nell'app.
             </p>
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
               <p className="text-blue-800 text-sm">
@@ -179,7 +185,7 @@ const PrivacyPage = () => {
               <h2 className="text-2xl font-semibold">6. Hai Domande?</h2>
             </div>
             <p className="opacity-90">
-              Il nostro team è sempre disponibile per chiarire qualsiasi dubbio sulla privacy e protezione dei tuoi dati.
+              Il nostro team è sempre disponibile per chiarire qualsiasi dubbio sulla privacy, protezione dei tuoi dati o esercizio dei tuoi diritti.
             </p>
             <div className="flex flex-col sm:flex-row gap-3">
               <Button asChild>

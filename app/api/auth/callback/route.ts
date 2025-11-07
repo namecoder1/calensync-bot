@@ -1,6 +1,7 @@
 import { google } from "googleapis";
 import { NextRequest, NextResponse } from "next/server";
-import { setGoogleTokens } from "@/lib/google-tokens";
+import { setGoogleTokens, setUserGoogleTokens } from "@/lib/google-tokens";
+import { createClient } from "@/supabase/server";
 
 const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_CLIENT_ID,
@@ -11,6 +12,7 @@ const oauth2Client = new google.auth.OAuth2(
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const code = searchParams.get("code");
+  const state = searchParams.get("state"); // contiene telegram userId
 
   if (!code) {
     return NextResponse.json({ error: "Missing authorization code" }, { status: 400 });
@@ -22,9 +24,27 @@ export async function GET(req: NextRequest) {
 
     oauth2Client.setCredentials(tokens);
 
-    // Salva i token in Redis (Upstash) per uso in produzione
+    // Se abbiamo lo state, salviamo i token per-utente
+    if (state) {
+      await setUserGoogleTokens(state, tokens as any);
+      console.log("Token Google salvati per utente:", state);
+
+      // Upsert utente su Supabase
+      try {
+        const supabase = await createClient();
+        await supabase.from('users').upsert({
+          telegram_id: state,
+          google_connected: true,
+          google_connected_at: new Date().toISOString(),
+        }, { onConflict: 'telegram_id' });
+      } catch (e) {
+        console.warn("Supabase upsert user failed", e);
+      }
+    }
+
+    // Mantieni anche i token globali (retrocompatibilità temporanea)
     await setGoogleTokens(tokens as any);
-    console.log("Token Google salvati in Redis");
+    console.log("Token Google globali salvati in Redis");
 
     // Ottieni l'host dall'oggetto req
   const host = req.headers.get("host");

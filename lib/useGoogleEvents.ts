@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
+import { useTelegramWebApp } from "@/lib/useTelegramWebApp";
 import { EventType } from "@/types";
 
 interface UseGoogleEventsResult {
@@ -16,6 +17,7 @@ export function useGoogleEvents(enabled: boolean): UseGoogleEventsResult {
   const [error, setError] = useState<string | null>(null);
   const [calendarAuthIssue, setCalendarAuthIssue] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
+  const { user } = useTelegramWebApp();
 
   const retry = useCallback(() => {
     setTick(t => t + 1);
@@ -30,7 +32,7 @@ export function useGoogleEvents(enabled: boolean): UseGoogleEventsResult {
       setCalendarAuthIssue(null);
       try {
         // Verifica stato Google prima
-        const statusRes = await fetch('/api/auth/status');
+  const statusRes = await fetch(`/api/auth/status${user?.id ? `?userId=${user.id}` : ''}`);
         const statusData = await statusRes.json();
         if (!statusData.hasTokens) {
           setCalendarAuthIssue("Connetti Google Calendar per sincronizzare i tuoi eventi.");
@@ -38,7 +40,7 @@ export function useGoogleEvents(enabled: boolean): UseGoogleEventsResult {
           return;
         }
         // Carica eventi
-        const eventsRes = await fetch('/api/calendar/events');
+  const eventsRes = await fetch(`/api/calendar/events${user?.id ? `?userId=${user.id}` : ''}`);
         if (!eventsRes.ok) {
           let msg = "Errore nel recupero degli eventi";
           try {
@@ -64,7 +66,7 @@ export function useGoogleEvents(enabled: boolean): UseGoogleEventsResult {
     };
     run();
     return () => { cancelled = true; };
-  }, [enabled, tick]);
+  }, [enabled, tick, user?.id]);
 
   return { events, loading, error, calendarAuthIssue, retry };
 }

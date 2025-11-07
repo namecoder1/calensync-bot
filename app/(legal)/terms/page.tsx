@@ -26,7 +26,7 @@ const TermsPage = () => {
             </p>
             <div className="flex items-center justify-center text-sm text-gray-500 mt-4">
               <FileText className="w-4 h-4 mr-1" />
-              Versione 1.0 - 7 Novembre 2024
+              Versione 1.1 - 7 Novembre 2025
             </div>
           </div>
         </div>
@@ -99,6 +99,7 @@ const TermsPage = () => {
             </div>
             
             <p className="text-gray-600 mb-4">I dati che raccogliamo sono strettamente necessari per il funzionamento del servizio:</p>
+            <p className="text-gray-600 mb-4">I dati che raccogliamo sono strettamente necessari per il funzionamento del servizio e vengono trattati secondo le basi giuridiche del consenso e del contratto, in conformità al GDPR:</p>
             
             <div className="grid md:grid-cols-2 gap-4 mb-6">
               <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
@@ -117,11 +118,15 @@ const TermsPage = () => {
                 <h3 className="font-medium text-purple-800 mb-2">Statistiche Anonime</h3>
                 <p className="text-sm text-purple-700">Dati aggregati per migliorare le funzionalità del servizio</p>
               </div>
+              <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
+                <h3 className="font-medium text-purple-800 mb-2">Policy di Retention</h3>
+                <p className="text-sm text-purple-700">I dati personali (token, log, configurazioni) vengono conservati solo per il tempo necessario all’erogazione del servizio e cancellati automaticamente dopo 12 mesi di inattività.</p>
+              </div>
             </div>
 
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
               <p className="text-blue-800 text-sm">
-                🔒 <strong>Garanzia di Privacy:</strong> I tuoi dati non vengono mai condivisi con terze parti e sono protetti con crittografia end-to-end.
+                🔒 <strong>Garanzia di Privacy:</strong> I tuoi dati non vengono mai condivisi con terze parti e sono protetti con crittografia end-to-end. Puoi esercitare i tuoi diritti di accesso, modifica, cancellazione, portabilità e reclamo in qualsiasi momento.
               </p>
             </div>
           </Card>
@@ -169,7 +174,7 @@ const TermsPage = () => {
                 </div>
                 <div>
                   <h3 className="font-medium text-gray-800">Sicurezza del Tuo Account</h3>
-                  <p className="text-gray-600 text-sm">Mantieni sicure le credenziali di accesso e non condividere mai il tuo account.</p>
+                  <p className="text-gray-600 text-sm">Mantieni sicure le credenziali di accesso e non condividere mai il tuo account. Puoi richiedere la cancellazione definitiva del tuo account e dei dati associati tramite l'app o contattando il supporto. La cancellazione è irreversibile e viene eseguita entro 7 giorni dalla richiesta.</p>
                 </div>
               </div>
               
@@ -189,7 +194,7 @@ const TermsPage = () => {
                 </div>
                 <div>
                   <h3 className="font-medium text-gray-800">Segnalazione Problemi</h3>
-                  <p className="text-gray-600 text-sm">Segnala tempestivamente eventuali problemi di sicurezza o malfunzionamenti.</p>
+                  <p className="text-gray-600 text-sm">Segnala tempestivamente eventuali problemi di sicurezza o malfunzionamenti. Puoi esercitare i tuoi diritti di portabilità e reclamo in qualsiasi momento.</p>
                 </div>
               </div>
             </div>
@@ -205,8 +210,7 @@ const TermsPage = () => {
             </div>
             
             <p className="text-gray-600 mb-4">
-              Possiamo aggiornare questi termini per riflettere nuove funzionalità o requisiti legali. 
-              Ti notificheremo sempre i cambiamenti importanti.
+              Possiamo aggiornare questi termini per riflettere nuove funzionalità, policy di retention o requisiti legali. Ti notificheremo sempre i cambiamenti importanti.
             </p>
             
             <div className="grid md:grid-cols-2 gap-4">
@@ -228,7 +232,7 @@ const TermsPage = () => {
               <h2 className="text-2xl font-semibold">6. Supporto e Contatti</h2>
             </div>
             <p className="opacity-90">
-              Hai domande sui termini di servizio o hai bisogno di supporto? Il nostro team è qui per aiutarti.
+              Hai domande sui termini di servizio, privacy, esercizio dei tuoi diritti o hai bisogno di supporto? Il nostro team è qui per aiutarti.
             </p>
             <div className="flex flex-col sm:flex-row gap-3">
               <Button asChild>

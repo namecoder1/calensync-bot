@@ -1,5 +1,6 @@
 import { verifySignatureAppRouter } from "@upstash/qstash/nextjs";
 import { dispatchDueReminders } from "@/lib/reminder-dispatcher";
+import { rateLimit } from "@/lib/rate-limit";
 import { NextRequest, NextResponse } from "next/server";
 
 /**
@@ -10,6 +11,12 @@ async function handler(req: NextRequest) {
   try {
     console.log("[QStash] Received scheduled reminder dispatch request");
     
+    // Rate limit globale difensivo (es. max 8 run per finestra 5m)
+    const rl = await rateLimit('qstash-dispatch', 8, 300);
+    if (!rl.allowed) {
+      return NextResponse.json({ success: false, error: 'Rate limit exceeded', retryAt: rl.reset }, { status: 429 });
+    }
+
     const result = await dispatchDueReminders(new Date(), { mode: 'auto' });
     
     console.log("[QStash] Dispatch completed:", result);

@@ -1,20 +1,5 @@
 import { NextResponse } from "next/server";
-import { redis } from "@/lib/redis";
 
-const KEY_GOOGLE_TOKENS = "google:oauth:tokens";
-
-export async function DELETE() {
-  try {
-    await redis.del(KEY_GOOGLE_TOKENS);
-    
-    return NextResponse.json({
-      success: true,
-      message: "Token Google rimossi con successo"
-    });
-  } catch (error: any) {
-    return NextResponse.json({
-      success: false,
-      error: error.message
-    }, { status: 500 });
-  }
-}
+// Endpoint deprecato: la disconnessione Google non è più esposta via API pubblica
+export async function GET() { return NextResponse.json({ ok: false, error: 'Endpoint deprecated' }, { status: 410 }); }
+export async function DELETE() { return NextResponse.json({ ok: false, error: 'Endpoint deprecated' }, { status: 410 }); }

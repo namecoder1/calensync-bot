@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { dispatchDueReminders } from "@/lib/reminder-dispatcher";
+import { rateLimit } from "@/lib/rate-limit";
 import { isAuthorizedTelegramUser, getTelegramUserSession } from "@/lib/telegram-auth";
 
 // Non cache: vogliamo esecuzione a ogni chiamata
@@ -26,6 +27,11 @@ async function handleDispatch(req: NextRequest) {
     
     // Se c'è userId, verifica autorizzazione e usa modalità manuale
     if (userId) {
+      // Rate limit manual dispatch per utente: max 4/min
+      const rl = await rateLimit(`manual-dispatch:${userId}`, 4, 60);
+      if (!rl.allowed) {
+        return NextResponse.json({ ok: false, error: 'Too many manual dispatch attempts' }, { status: 429 });
+      }
       const isAuthorized = await isAuthorizedTelegramUser(userId);
       
       if (!isAuthorized) {
@@ -40,11 +46,17 @@ async function handleDispatch(req: NextRequest) {
       triggeredBy = `${userId} (${userSession?.firstName || 'Unknown'})`;
       console.log(`[MANUAL] Dispatch triggered by user ${triggeredBy}`);
     } else {
+      // Rate limit globale difensivo per chiamate senza user (es. test): 2/min
+      const ip = req.headers.get('x-forwarded-for') || 'ip:unknown';
+      const rl = await rateLimit(`auto-dispatch:${ip}`, 2, 60);
+      if (!rl.allowed) {
+        return NextResponse.json({ ok: false, error: 'Rate limit exceeded' }, { status: 429 });
+      }
       console.log(`[AUTO] Dispatch triggered by cron/automated process`);
     }
     
     // Esegui il dispatcher
-    const res = await dispatchDueReminders(new Date(), { mode });
+  const res = await dispatchDueReminders(new Date(), { mode, userId: userId ?? undefined });
     
     // Log dell'attività
     console.log(`Dispatch [${mode.toUpperCase()}] completed: sent=${res.sent}, skipped=${res.skipped}, errors=${res.errors.length}`);

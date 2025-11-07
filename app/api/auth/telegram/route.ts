@@ -1,6 +1,9 @@
 import crypto from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { redis } from "@/lib/redis";
+import { rateLimit } from "@/lib/rate-limit";
+import { updateDailyAnalytics } from "@/lib/analytics";
+import { createClient } from "@/supabase/server";
 
 // Create secret key according to Telegram documentation
 // https://core.telegram.org/bots/webapps#validating-data-received-via-the-mini-app
@@ -114,10 +117,25 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "Server misconfigured" }, { status: 500 });
     }
 
+    // Rate limit per utente (se presente nell'initData) o IP
+    const ip = req.headers.get('x-forwarded-for') || 'ip:unknown';
+    let rlKey = `tg-auth:${ip}`;
+    try {
+      const parsed = parseInitData(initData);
+      if (parsed.user) {
+        const u = JSON.parse(parsed.user);
+        if (u?.id) rlKey = `tg-auth:${u.id}`;
+      }
+    } catch {}
+    const rl = await rateLimit(rlKey, 10, 60);
+    if (!rl.allowed) {
+      return NextResponse.json({ ok: false, error: "Too many auth attempts" }, { status: 429 });
+    }
+
     // Verify Telegram data
     const verification = verifyTelegramWebAppData(initData, botToken);
     
-    if (!verification.valid) {
+  if (!verification.valid) {
       console.error("Verification failed:", verification.error);
       
       // Try to extract user info anyway for authorized users (fallback mode)
@@ -135,6 +153,19 @@ export async function POST(req: NextRequest) {
       if (user?.id) {
         console.log(`⚠️ BYPASS MODE: User ${user.id} - allowing despite invalid signature`);
         
+        // Ensure user exists in DB
+        try {
+          const supabase = await createClient();
+          await supabase.from('users').upsert({
+            telegram_id: user.id.toString(),
+            first_name: user.first_name ?? null,
+            last_name: user.last_name ?? null,
+            username: user.username ?? null,
+            language_code: user.language_code ?? 'it',
+            last_active_at: new Date().toISOString(),
+          }, { onConflict: 'telegram_id' });
+        } catch {}
+
         // Save session for any valid Telegram user
         await redis.set(`telegram:session:${user.id}`, {
           userId: user.id,
@@ -143,6 +174,9 @@ export async function POST(req: NextRequest) {
           lastSeen: Date.now(),
           bypassMode: true
         }, { ex: 24 * 60 * 60 });
+
+        // Analytics: app open
+        try { await updateDailyAnalytics(user.id.toString(), { app_opens: 1 }); } catch {}
         
         return NextResponse.json({
           ok: true,
@@ -165,6 +199,19 @@ export async function POST(req: NextRequest) {
 
     console.log(`✅ Authenticated user: ${userId} (${user.first_name})`);
 
+    // Ensure user exists in DB
+    try {
+      const supabase = await createClient();
+      await supabase.from('users').upsert({
+        telegram_id: userId,
+        first_name: user.first_name ?? null,
+        last_name: user.last_name ?? null,
+        username: user.username ?? null,
+        language_code: user.language_code ?? 'it',
+        last_active_at: new Date().toISOString(),
+      }, { onConflict: 'telegram_id' });
+    } catch {}
+
     // Save session for any valid Telegram user
     await redis.set(`telegram:session:${userId}`, {
       userId,
@@ -173,6 +220,9 @@ export async function POST(req: NextRequest) {
       lastSeen: Date.now(),
       bypassMode: false
     }, { ex: 24 * 60 * 60 });
+
+    // Analytics: app open
+    try { await updateDailyAnalytics(userId, { app_opens: 1 }); } catch {}
 
     return NextResponse.json({
       ok: true,
