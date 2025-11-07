@@ -37,9 +37,24 @@ interface TelegramMessage {
   }>;
 }
 
+interface TelegramChatMemberUpdated {
+  chat: TelegramChat;
+  from: TelegramUser;
+  date: number;
+  old_chat_member: {
+    user: TelegramUser;
+    status: string;
+  };
+  new_chat_member: {
+    user: TelegramUser;
+    status: string;
+  };
+}
+
 interface TelegramUpdate {
   update_id: number;
   message?: TelegramMessage;
+  my_chat_member?: TelegramChatMemberUpdated;
 }
 
 // Funzione per gestire il comando /start
@@ -156,9 +171,132 @@ Per usare tutte le funzionalità, apri la Mini App dal menu del bot!`;
   await sendTelegramMessage(chatId.toString(), message);
 }
 
+// Funzione per gestire l'aggiunta/rimozione del bot da un gruppo
+async function handleChatMemberUpdate(update: TelegramChatMemberUpdated): Promise<void> {
+  const chat = update.chat;
+  const botUser = update.new_chat_member.user;
+  const addedByUser = update.from;
+  
+  // Verifica che sia il nostro bot
+  if (!botUser.is_bot) return;
+  
+  const newStatus = update.new_chat_member.status;
+  const oldStatus = update.old_chat_member.status;
+  
+  console.log("🤖 Chat member update:", {
+    chat: chat.title || chat.id,
+    botId: botUser.id,
+    addedBy: `${addedByUser.first_name} (${addedByUser.id})`,
+    oldStatus,
+    newStatus,
+  });
+  
+  // Il bot è stato aggiunto al gruppo (member o administrator)
+  if ((newStatus === 'member' || newStatus === 'administrator') && 
+      (oldStatus === 'left' || oldStatus === 'kicked')) {
+    
+    // Salva il gruppo per l'utente che ha aggiunto il bot
+    const userId = addedByUser.id.toString();
+    
+    // Verifica che l'utente abbia una sessione attiva (ha aperto la mini app)
+    const session = await redis.get(`telegram:session:${userId}`);
+    if (!session) {
+      console.log(`⚠️ User ${userId} non ha una sessione attiva, salvo comunque il gruppo`);
+    }
+    
+    const supabase = await createClient();
+    
+    // Prima verifica che l'utente esista
+    const { data: existingUser } = await supabase
+      .from('users')
+      .select('telegram_id')
+      .eq('telegram_id', userId)
+      .single();
+    
+    // Se l'utente non esiste, crealo
+    if (!existingUser) {
+      await supabase.from('users').insert({
+        telegram_id: userId,
+        first_name: addedByUser.first_name,
+        last_name: addedByUser.last_name,
+        username: addedByUser.username,
+        language_code: addedByUser.language_code || 'en',
+      });
+      console.log(`✅ Creato nuovo utente: ${userId}`);
+    }
+    
+    // Salva il gruppo (senza topic)
+    const { error: gErr } = await supabase
+      .from('user_telegram_groups')
+      .upsert({
+        telegram_id: userId,
+        group_chat_id: chat.id.toString(),
+        group_title: chat.title ?? chat.username ?? null,
+        group_type: chat.type,
+        topic_id: null,
+        topic_name: null,
+        is_active: true,
+        bot_added_at: new Date().toISOString(),
+      }, { onConflict: 'telegram_id,group_chat_id,topic_id' });
+    
+    if (gErr) {
+      console.error("❌ Errore salvataggio gruppo:", gErr);
+    } else {
+      console.log(`✅ Gruppo ${chat.title} salvato per utente ${userId}`);
+    }
+    
+    // Invia messaggio di benvenuto al gruppo
+    const welcomeMessage = `👋 Ciao! Sono CalenSync Bot!
+
+Sono stato aggiunto a questo gruppo da ${addedByUser.first_name}.
+
+📅 Cosa posso fare:
+• Inviare promemoria automatici per eventi del calendario
+• Supportare topic/discussioni nei supergruppi
+• Gestire più calendari e gruppi
+
+🔧 Come configurarmi:
+1. Apri la Mini App di CalenSync
+2. Connetti il tuo Google Calendar
+3. Seleziona questo gruppo per ricevere i promemoria
+
+💡 Oppure usa il comando /register qui nel gruppo per registrarlo subito!
+
+❓ Serve aiuto? Usa /help`;
+
+    await sendTelegramMessage(chat.id.toString(), welcomeMessage);
+  }
+  
+  // Il bot è stato rimosso dal gruppo
+  if ((newStatus === 'left' || newStatus === 'kicked') && 
+      (oldStatus === 'member' || oldStatus === 'administrator')) {
+    
+    const userId = addedByUser.id.toString();
+    const supabase = await createClient();
+    
+    // Disattiva il gruppo
+    await supabase
+      .from('user_telegram_groups')
+      .update({ 
+        is_active: false,
+        bot_removed_at: new Date().toISOString(),
+      })
+      .eq('telegram_id', userId)
+      .eq('group_chat_id', chat.id.toString());
+    
+    console.log(`🚫 Bot rimosso dal gruppo ${chat.title} per utente ${userId}`);
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body: TelegramUpdate = await req.json();
+    
+    // Gestisci l'aggiunta/rimozione del bot da un gruppo
+    if (body.my_chat_member) {
+      await handleChatMemberUpdate(body.my_chat_member);
+      return NextResponse.json({ ok: true });
+    }
     
     // Verifica che ci sia un messaggio
     if (!body.message) {

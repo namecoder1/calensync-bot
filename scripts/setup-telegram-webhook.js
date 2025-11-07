@@ -28,7 +28,7 @@ async function setWebhook() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         url: webhookUrl,
-        allowed_updates: ["message"],
+        allowed_updates: ["message", "my_chat_member"],
         drop_pending_updates: true
       })
     });
