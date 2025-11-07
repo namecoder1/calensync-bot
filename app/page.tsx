@@ -390,11 +390,11 @@ export default function EventsPage() {
       toast.warning('Seleziona almeno un calendario')
       return
     }
-    try {
-      const res = await fetch('/api/user/calendars/selection', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: user.id, items })
-      })
+      try {
+        const res = await fetch('/api/user/calendars/selection', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ items })
+        })
       const data = await res.json()
       if (!res.ok || !data.ok) throw new Error(data.error || 'Errore salvataggio selezione')
       toast.success('Calendari salvati')
