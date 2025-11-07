@@ -131,32 +131,25 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ ok: false, error: verification.error }, { status: 401 });
       }
       
-      // Check if user is authorized (bypass signature check for authorized users)
+      // Check if user is authorized (bypass signature check for valid users)
       if (user?.id) {
-        const authorizedUsers = process.env.TELEGRAM_AUTHORIZED_USERS?.split(',')
-          .map(id => id.trim())
-          .filter(Boolean) || [];
-        const userId = user.id.toString();
+        console.log(`⚠️ BYPASS MODE: User ${user.id} - allowing despite invalid signature`);
         
-        if (authorizedUsers.includes(userId)) {
-          console.log(`⚠️ BYPASS MODE: User ${userId} is authorized, allowing despite invalid signature`);
-          
-          // Save session
-          await redis.set(`telegram:session:${userId}`, {
-            userId,
-            firstName: user.first_name,
-            username: user.username,
-            lastSeen: Date.now(),
-            bypassMode: true
-          }, { ex: 24 * 60 * 60 });
-          
-          return NextResponse.json({
-            ok: true,
-            user: user,
-            message: "Authentication successful (bypass mode)",
-            warning: "Signature verification failed but user is authorized"
-          });
-        }
+        // Save session for any valid Telegram user
+        await redis.set(`telegram:session:${user.id}`, {
+          userId: user.id,
+          firstName: user.first_name,
+          username: user.username,
+          lastSeen: Date.now(),
+          bypassMode: true
+        }, { ex: 24 * 60 * 60 });
+        
+        return NextResponse.json({
+          ok: true,
+          user: user,
+          message: "Authentication successful (bypass mode)",
+          warning: "Signature verification failed but user is valid"
+        });
       }
       
       return NextResponse.json({ ok: false, error: verification.error }, { status: 401 });
@@ -168,20 +161,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "No user ID found" }, { status: 400 });
     }
 
-    // Check authorization
-    const authorizedUsers = process.env.TELEGRAM_AUTHORIZED_USERS?.split(',')
-      .map(id => id.trim())
-      .filter(Boolean) || [];
     const userId = user.id.toString();
-    
-    if (!authorizedUsers.includes(userId)) {
-      console.log(`Unauthorized user attempted access: ${userId}`);
-      return NextResponse.json({ ok: false, error: "Non autorizzato" }, { status: 403 });
-    }
 
     console.log(`✅ Authenticated user: ${userId} (${user.first_name})`);
 
-    // Save session
+    // Save session for any valid Telegram user
     await redis.set(`telegram:session:${userId}`, {
       userId,
       firstName: user.first_name,
@@ -194,9 +178,7 @@ export async function POST(req: NextRequest) {
       ok: true,
       user: user,
       message: "Authentication successful"
-    });
-
-  } catch (e: any) {
+    });  } catch (e: any) {
     console.error("Server error:", e);
     return NextResponse.json({ 
       ok: false, 

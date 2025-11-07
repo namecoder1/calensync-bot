@@ -169,14 +169,11 @@ export async function POST(req: NextRequest) {
       }
       
       if (user?.id) {
-        const authorizedUsers = process.env.TELEGRAM_AUTHORIZED_USERS?.split(',').map(id => id.trim()).filter(Boolean) || [];
         const userId = user.id.toString();
         
-        if (authorizedUsers.includes(userId)) {
-          console.log(`BYPASS MODE: User ${userId} is authorized, skipping hash verification`);
-          res = { ok: true, data: { ...data, user } };
-          bypassMode = true;
-        }
+        console.log(`BYPASS MODE: User ${userId} - allowing despite hash verification failure`);
+        res = { ok: true, data: { ...data, user } };
+        bypassMode = true;
       }
     }
     
@@ -185,20 +182,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: res.reason ?? "Invalid signature" }, { status: 401 });
     }
 
-    // Controllo autorizzazione utente
-    const authorizedUsers = process.env.TELEGRAM_AUTHORIZED_USERS?.split(',').map(id => id.trim()).filter(Boolean) || [];
+    // Qualsiasi utente Telegram valido può usare l'app
     const userId = res.data?.user?.id?.toString();
     
-    if (userId && !authorizedUsers.includes(userId)) {
-      console.log(`Unauthorized user attempted access: ${userId} (${res.data?.user?.first_name})`);
+    if (!userId) {
+      console.log(`No user ID found in Telegram data`);
       return NextResponse.json({ 
         ok: false, 
-        error: "Non sei autorizzato ad usare questa app. Contatta l'amministratore." 
-      }, { status: 403 });
+        error: "No user ID found in Telegram data" 
+      }, { status: 400 });
     }
 
     const authMode = bypassMode ? "BYPASS" : "VERIFIED";
-    console.log(`Telegram auth successful for authorized user: ${userId} (${res.data?.user?.first_name}) - Mode: ${authMode}`);
+    console.log(`Telegram auth successful for user: ${userId} (${res.data?.user?.first_name}) - Mode: ${authMode}`);
     
     // Salva la sessione utente in Redis per uso futuro
     if (userId) {

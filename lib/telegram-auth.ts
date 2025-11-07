@@ -3,23 +3,14 @@ import { NextRequest, NextResponse } from "next/server";
 
 /**
  * Verifica se l'utente Telegram è autorizzato
- * Controlla sia la lista degli utenti autorizzati che la sessione attiva
+ * Ora permette a qualsiasi utente Telegram di usare l'app
  */
 export async function isAuthorizedTelegramUser(userId?: string | number): Promise<boolean> {
   if (!userId) return false;
   
   const userIdStr = userId.toString();
   
-  // Controlla la lista degli utenti autorizzati
-  const authorizedUsers = process.env.TELEGRAM_AUTHORIZED_USERS?.split(',')
-    .map(id => id.trim())
-    .filter(Boolean) || [];
-  
-  if (!authorizedUsers.includes(userIdStr)) {
-    return false;
-  }
-  
-  // Controlla se ha una sessione attiva
+  // Controlla se ha una sessione attiva - qualsiasi utente Telegram può usare l'app
   try {
     const session = await redis.get(`telegram:session:${userIdStr}`);
     return !!session;
@@ -60,7 +51,7 @@ export function createTelegramAuthMiddleware(handler: (req: NextRequest, userId:
       if (!isAuthorized) {
         return NextResponse.json({
           ok: false,
-          error: "Non autorizzato. Effettua prima l'autenticazione Telegram o contatta l'amministratore."
+          error: "Non autorizzato. Effettua prima l'autenticazione Telegram."
         }, { status: 403 });
       }
       
