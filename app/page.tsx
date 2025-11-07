@@ -26,6 +26,7 @@ export default function EventsPage() {
   // Su Telegram, iniziamo sempre come autorizzati e saltiamo il passaggio di connessione
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null)
   const [checkingAuth, setCheckingAuth] = useState(true)
+  const [telegramAuthDone, setTelegramAuthDone] = useState(false)
   const [devMode, setDevMode] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false);
   const [checkingAdmin, setCheckingAdmin] = useState(false);
@@ -104,6 +105,33 @@ export default function EventsPage() {
 
   const hasValidTelegramData = webApp && webApp.initData && webApp.initData.length > 0;
   const showQRCode = mounted && !telegramDevMode && !hasValidTelegramData;
+
+  // Effettua automaticamente l'autenticazione Telegram lato server quando possibile
+  useEffect(() => {
+    const autoAuthTelegram = async () => {
+      if (!isTelegram || telegramAuthDone) return;
+      if (!webApp?.initData || webApp.initData.length === 0) return;
+      try {
+        const res = await fetch("/api/auth/telegram", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ initData: webApp.initData })
+        });
+        // Non bloccare il flusso su errori: log e continua
+        try {
+          const data = await res.json();
+          if (!res.ok || !data?.ok) {
+            console.warn("Auto Telegram auth failed:", data?.error || res.statusText);
+          }
+        } catch {}
+      } catch (e) {
+        console.warn("Auto Telegram auth request error:", e);
+      } finally {
+        setTelegramAuthDone(true);
+      }
+    };
+    autoAuthTelegram();
+  }, [isTelegram, webApp, telegramAuthDone]);
 
   const triggerDispatch = async () => {
     if (!user) return;
@@ -329,9 +357,25 @@ export default function EventsPage() {
         );
       }
       
-      // Se siamo su Telegram ma non autorizzati, questo non dovrebbe mai accadere
-      // perché settiamo isAuthorized = true automaticamente per Telegram
-      return null;
+      // Se siamo su Telegram ma non abbiamo ancora completato l'autorizzazione
+      // mostra un loader (evita schermata bianca in caso di race-condition)
+      return (
+        <div className="p-6 min-h-screen flex items-center justify-center">
+          <div className="text-center">
+            <TailSpin
+              visible={true}
+              height="80"
+              width="80"
+              color="#1ca34d"
+              ariaLabel="tail-spin-loading"
+              radius="1"
+              wrapperStyle={{}}
+              wrapperClass="mx-auto w-fit mb-4"
+            />
+            <p className="text-muted-foreground">Connessione a Telegram in corso...</p>
+          </div>
+        </div>
+      );
     }
 
     if (calendarAuthIssue) {
