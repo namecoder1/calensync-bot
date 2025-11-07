@@ -13,6 +13,7 @@ import { RiInformation2Line } from "react-icons/ri";
 import { Button } from "@/components/ui/button";
 import { GrSend } from "react-icons/gr";
 import QRCodeStyling, { Options } from "qr-code-styling";
+import {QRCodeCanvas} from 'qrcode.react';
 import Link from "next/link";
 
 
@@ -21,8 +22,9 @@ export default function EventsPage() {
   const { user, isTelegram, webApp, devMode: telegramDevMode } = useTelegramWebApp()
   const [events, setEvents] = useState<EventType[]>([])
   const [calendarAuthIssue, setCalendarAuthIssue] = useState<string | null>(null)
-  const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null)
-  const [checkingAuth, setCheckingAuth] = useState(true)
+  // Su Telegram, iniziamo sempre come autorizzati
+  const [isAuthorized, setIsAuthorized] = useState<boolean | null>(isTelegram ? true : null)
+  const [checkingAuth, setCheckingAuth] = useState(!isTelegram) // Su Telegram non controlliamo
   const [devMode, setDevMode] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false);
   const [checkingAdmin, setCheckingAdmin] = useState(false);
