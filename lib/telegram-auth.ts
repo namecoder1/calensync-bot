@@ -23,17 +23,18 @@ export async function isAuthorizedTelegramUser(userId?: string | number): Promis
 /**
  * Middleware per proteggere gli endpoint che richiedono autorizzazione Telegram
  */
-export function createTelegramAuthMiddleware(handler: (req: NextRequest, userId: string) => Promise<NextResponse>) {
+export function createTelegramAuthMiddleware(handler: (req: NextRequest, userId: string, body?: any) => Promise<NextResponse>) {
   return async (req: NextRequest) => {
     try {
       // Cerca l'ID utente nella query string o nel body
       const url = new URL(req.url);
       let userId = url.searchParams.get('userId');
+      let parsedBody: any = null;
       
       if (!userId && req.method === 'POST') {
         try {
-          const body = await req.json();
-          userId = body.userId;
+          parsedBody = await req.json();
+          userId = parsedBody.userId;
         } catch {
           // Ignore parsing errors
         }
@@ -55,7 +56,7 @@ export function createTelegramAuthMiddleware(handler: (req: NextRequest, userId:
         }, { status: 403 });
       }
       
-      return handler(req, userId);
+      return handler(req, userId, parsedBody);
     } catch (error: any) {
       return NextResponse.json({
         ok: false,

@@ -9,31 +9,14 @@ interface CalendarSelectionItem {
   calendarDescription?: string | null;
 }
 
-async function handler(req: NextRequest, userId: string) {
+async function handler(req: NextRequest, userId: string, body?: any) {
   if (req.method !== 'POST') {
     return NextResponse.json({ ok: false, error: 'Method not allowed' }, { status: 405 });
   }
 
   const supabase = await createClient();
 
-  // Logga headers
-  console.log('Headers ricevuti:', Object.fromEntries(req.headers.entries()));
-  // Logga raw body
-  let body: any = null;
-  try {
-    const rawBody = await req.text();
-    console.log('Raw body ricevuto:', rawBody);
-    // Prova a fare il parse
-    try {
-      body = JSON.parse(rawBody);
-    } catch {
-      body = null;
-    }
-  } catch {
-    body = null;
-  }
-  console.log('Body ricevuto dal frontend:', body);
-  console.log('Body ricevuto dal frontend:', body)
+  console.log('Body ricevuto dal middleware:', body);
   const items = (body?.items || []) as CalendarSelectionItem[];
   if (!Array.isArray(items) || items.length === 0) {
     return NextResponse.json({ ok: false, error: 'items array required' }, { status: 400 });
@@ -79,8 +62,8 @@ async function handler(req: NextRequest, userId: string) {
   return NextResponse.json({ ok: true });
 }
 
-export const POST = createTelegramAuthMiddleware(async (req, userId) => {
-  const res = await handler(req, userId);
+export const POST = createTelegramAuthMiddleware(async (req, userId, body) => {
+  const res = await handler(req, userId, body);
   // Aggiorna analytics: conteggio calendari abilitati
   try {
     const supabase = await createClient();
