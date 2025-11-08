@@ -7,12 +7,11 @@ interface DeregisterItem {
   topicId?: number | null;
 }
 
-async function handler(req: NextRequest, userId: string) {
+async function handler(req: NextRequest, userId: string, preParsedBody?: any) {
   if (req.method !== 'POST') {
     return NextResponse.json({ ok: false, error: 'Method not allowed' }, { status: 405 });
   }
-  let body: any = null;
-  try { body = await req.json(); } catch {}
+  const body = preParsedBody ?? {};
   const items: DeregisterItem[] = Array.isArray(body?.items)
     ? body.items
     : body?.chatId

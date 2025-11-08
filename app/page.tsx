@@ -63,7 +63,7 @@ export default function EventsPage() {
 
   // Impostazione fase base in base al contesto (web vs Telegram)
   // Decide la fase dall'oggetto status utente
-  const decidePhaseFromStatus = (status: any) => {
+  const decidePhaseFromStatus = async (status: any) => {
     if (!status) {
       setPhase('TG_FIRST_RUN_GOOGLE_CONNECT')
       return
@@ -73,7 +73,35 @@ export default function EventsPage() {
       return
     }
     if (status.google_connected && !status.onboarding_completed) {
-      setPhase('TG_FIRST_RUN_SELECT_CALENDARS') // prossimo step logico
+      // Controlla se l'utente ha già calendari salvati e/o gruppi attivi per saltare step
+      if (user?.id) {
+        try {
+          const [calRes, grpRes] = await Promise.all([
+            fetch(`/api/user/calendars?userId=${user.id}`),
+            fetch(`/api/telegram/groups?userId=${user.id}`)
+          ])
+          const calData = await calRes.json().catch(() => ({}))
+          const grpData = await grpRes.json().catch(() => ({}))
+          const hasCalendars = calRes.ok && calData?.ok && Array.isArray(calData.calendars) && calData.calendars.length > 0
+          const hasGroups = grpRes.ok && grpData?.ok && Array.isArray(grpData.groups) && grpData.groups.length > 0
+
+          if (!hasCalendars) {
+            setPhase('TG_FIRST_RUN_SELECT_CALENDARS')
+            return
+          }
+          if (hasCalendars && !hasGroups) {
+            setPhase('TG_FIRST_RUN_SELECT_GROUPS')
+            return
+          }
+          // Se ha sia calendari che gruppi, portalo direttamente al mapping
+          setPhase('TG_FIRST_RUN_MAPPING')
+          return
+        } catch {
+          setPhase('TG_FIRST_RUN_SELECT_CALENDARS')
+          return
+        }
+      }
+      setPhase('TG_FIRST_RUN_SELECT_CALENDARS')
       return
     }
     if (status.google_connected && status.onboarding_completed) {
@@ -143,10 +171,10 @@ export default function EventsPage() {
         let data: any = null
         try { data = await res.json() } catch {}
         if (!res.ok) throw new Error(data?.error || 'Status error')
-        decidePhaseFromStatus(data)
+        await decidePhaseFromStatus(data)
       } catch (e) {
         console.warn('User status fetch failed', e)
-        decidePhaseFromStatus(null)
+        await decidePhaseFromStatus(null)
       }
     }
     run()

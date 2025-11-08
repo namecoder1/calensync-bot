@@ -11,29 +11,24 @@ interface RegisterItem {
   topics?: TopicItem[];
 }
 
-async function handler(req: NextRequest, userId: string) {
+async function handler(req: NextRequest, userId: string, preParsedBody?: any) {
   if (req.method !== 'POST') {
     return NextResponse.json({ ok: false, error: 'Method not allowed' }, { status: 405 });
   }
   const supabase = await createClient();
 
-  let body: any = null;
-  try { body = await req.json(); } catch (e) {
-    console.error('Failed to parse request body:', e);
-    return NextResponse.json({ ok: false, error: 'Invalid JSON body' }, { status: 400 });
-  }
-
+  const body = preParsedBody ?? {};
   let items: RegisterItem[] = [];
   const replace: boolean = Boolean(body?.replace);
-  
-  console.log('Received body:', JSON.stringify(body, null, 2));
-  
-  if (Array.isArray(body?.items)) items = body.items;
-  else if (body?.chatId) items = [body as RegisterItem];
 
-  console.log('Parsed items:', JSON.stringify(items, null, 2));
+  if (Array.isArray(body?.items)) items = body.items as RegisterItem[];
+  else if (body?.chatId) {
+    items = [{ chatId: body.chatId, title: body.title, type: body.type, topics: Array.isArray(body.topics) ? body.topics : undefined }];
+  }
 
   if (!items.length) return NextResponse.json({ ok: false, error: 'No items to register' }, { status: 400 });
+  console.log('[groups/register] Received body:', JSON.stringify(body, null, 2));
+  console.log('[groups/register] Parsed items:', JSON.stringify(items, null, 2));
 
   // Upsert group rows, plus topics
   const selectedKeys = new Set<string>(); // key format: `${chatId}#${topicId ?? ''}`

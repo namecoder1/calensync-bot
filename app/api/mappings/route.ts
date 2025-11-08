@@ -35,13 +35,12 @@ export async function GET(req: NextRequest) {
 
 interface MappingInput { calendarId: string; chatId: string; topicId?: number | null }
 
-async function postHandler(req: NextRequest, userId: string) {
+async function postHandler(req: NextRequest, userId: string, preParsedBody?: any) {
   if (req.method !== 'POST') {
     return NextResponse.json({ ok: false, error: 'Method not allowed' }, { status: 405 });
   }
 
-  let body: any = null;
-  try { body = await req.json(); } catch {}
+  const body = preParsedBody ?? {};
   const inputs = (body?.mappings || []) as MappingInput[];
   if (!Array.isArray(inputs)) return NextResponse.json({ ok: false, error: 'mappings array required' }, { status: 400 });
 
