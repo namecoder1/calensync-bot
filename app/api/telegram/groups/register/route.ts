@@ -18,12 +18,20 @@ async function handler(req: NextRequest, userId: string) {
   const supabase = await createClient();
 
   let body: any = null;
-  try { body = await req.json(); } catch {}
+  try { body = await req.json(); } catch (e) {
+    console.error('Failed to parse request body:', e);
+    return NextResponse.json({ ok: false, error: 'Invalid JSON body' }, { status: 400 });
+  }
 
   let items: RegisterItem[] = [];
   const replace: boolean = Boolean(body?.replace);
+  
+  console.log('Received body:', JSON.stringify(body, null, 2));
+  
   if (Array.isArray(body?.items)) items = body.items;
   else if (body?.chatId) items = [body as RegisterItem];
+
+  console.log('Parsed items:', JSON.stringify(items, null, 2));
 
   if (!items.length) return NextResponse.json({ ok: false, error: 'No items to register' }, { status: 400 });
 

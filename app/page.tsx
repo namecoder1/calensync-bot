@@ -77,8 +77,7 @@ export default function EventsPage() {
       return
     }
     if (status.google_connected && status.onboarding_completed) {
-  toast.success('Mappature salvate, onboarding completato!')
-  setPhase('TG_APP_READY')
+      setPhase('TG_APP_READY')
       return
     }
     // fallback
@@ -204,7 +203,26 @@ export default function EventsPage() {
         const res = await fetch(`/api/telegram/groups?userId=${user.id}`)
         const data = await res.json()
         if (!res.ok || !data.ok) throw new Error(data.error || 'Errore caricamento gruppi')
-        setGroups(data.groups || [])
+        const loadedGroups = data.groups || []
+        setGroups(loadedGroups)
+        
+        // Preseleziona i gruppi/topic già attivi
+        const preselected: Record<string, boolean> = {}
+        for (const g of loadedGroups) {
+          // Se il gruppo è nella lista, significa che è già registrato e attivo
+          const baseKey = `${g.chat_id}#`
+          // Controlla se questo gruppo era già registrato (ha topics o è un gruppo base)
+          if (!g.topics || g.topics.length === 0) {
+            preselected[baseKey] = true
+          }
+          // Preseleziona anche i topics attivi
+          if (g.topics && g.topics.length > 0) {
+            for (const t of g.topics) {
+              preselected[`${g.chat_id}#${t.id}`] = true
+            }
+          }
+        }
+        setSelectedGroups(preselected)
       } catch (e: any) {
         setGroupsError(e.message || 'Errore sconosciuto')
       } finally {
@@ -273,29 +291,37 @@ export default function EventsPage() {
     for (const g of groups) {
       const baseKey = `${g.chat_id}#`
       const baseSelected = selectedGroups[baseKey]
-      const topicItems = g.topics.filter(t => selectedGroups[`${g.chat_id}#${t.id}`]).map(t => ({ id: t.id, title: t.title }))
+      const topicItems = g.topics?.filter(t => selectedGroups[`${g.chat_id}#${t.id}`]).map(t => ({ id: t.id, title: t.title })) || []
+      
+      // Aggiungi l'item solo se c'è qualcosa di selezionato
       if (baseSelected || topicItems.length > 0) {
-        items.push({ chatId: g.chat_id, title: g.title, type: g.type, topics: topicItems })
+        items.push({ 
+          chatId: g.chat_id, 
+          title: g.title, 
+          type: g.type, 
+          topics: topicItems.length > 0 ? topicItems : undefined 
+        })
       }
     }
     if (items.length === 0) {
-      alert('Seleziona almeno un gruppo o topic prima di salvare.')
+      toast.error('Seleziona almeno un gruppo o topic prima di salvare.')
       return
     }
     setRegisteringGroups(true)
     try {
+      console.log('Registering groups with items:', JSON.stringify(items, null, 2))
       const res = await fetch('/api/telegram/groups/register', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: user.id, items, replace: true })
       })
-  const data = await res.json()
-  if (!res.ok || !data.ok) throw new Error(data.error || 'Errore registrazione gruppi')
-  toast.success('Gruppi selezionati salvati')
-  // Dopo registrazione, ricarica elenco e passa alla fase mapping
+      const data = await res.json()
+      if (!res.ok || !data.ok) throw new Error(data.error || 'Errore registrazione gruppi')
+      toast.success('Gruppi selezionati salvati')
+      // Dopo registrazione, ricarica elenco e passa alla fase mapping
       await refreshGroups()
       setPhase('TG_FIRST_RUN_MAPPING')
     } catch (e: any) {
-      alert(e.message || 'Errore sconosciuto durante registrazione gruppi')
+      toast.error(e.message || 'Errore sconosciuto durante registrazione gruppi')
     } finally {
       setRegisteringGroups(false)
     }
@@ -357,6 +383,7 @@ export default function EventsPage() {
       setCalLoading(true)
       setCalError(null)
       try {
+        // Carica calendari disponibili da Google
         const res = await fetch(`/api/google/calendars?userId=${user.id}`)
         const data = await res.json()
         if (!res.ok || !data.ok) throw new Error(data.error || 'Errore caricamento calendari')
@@ -364,10 +391,20 @@ export default function EventsPage() {
         // Filtra solo calendari con accesso reader/editor/owner
         const filtered = list.filter(c => (c.accessRole || '').toLowerCase() !== 'freebusy')
         setCalendars(filtered)
-        // Preseleziona il primary se presente
+        
+        // Carica calendari già salvati dall'utente
+        const savedRes = await fetch(`/api/user/calendars?userId=${user.id}`)
+        const savedData = await savedRes.json()
+        const savedCalendarIds = new Set((savedData.calendars || []).map((c: any) => c.calendar_id))
+        
+        // Preseleziona i calendari già salvati, oppure il primary se è la prima volta
         const defaults: Record<string, boolean> = {}
         for (const c of filtered) {
-          if (c.primary) defaults[c.id] = true
+          if (savedCalendarIds.has(c.id)) {
+            defaults[c.id] = true
+          } else if (savedCalendarIds.size === 0 && c.primary) {
+            defaults[c.id] = true
+          }
         }
         setSelectedCalendars(defaults)
       } catch (e: any) {
@@ -417,6 +454,13 @@ export default function EventsPage() {
           const topicId = topicStr ? parseInt(topicStr, 10) : undefined
           return { calendarId, chatId, topicId }
         })
+      
+      // Verifica che ci siano mappature da salvare
+      if (mappings.length === 0) {
+        setMappingError('Devi creare almeno una mappatura calendario → gruppo/topic')
+        return
+      }
+      
       const res = await fetch('/api/mappings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -424,6 +468,18 @@ export default function EventsPage() {
       })
       const data = await res.json()
       if (!res.ok || !data.ok) throw new Error(data.error || 'Errore salvataggio mappature')
+      
+      // Verifica che siano state effettivamente inserite delle mappature
+      if (data.inserted === 0) {
+        const details = data.skipped ? `\n\nDettagli:\n${data.skipped.join('\n')}` : ''
+        setMappingError(`Nessuna mappatura valida è stata salvata. Verifica che i calendari e i gruppi siano configurati correttamente.${details}`)
+        return
+      }
+      
+      // Mostra warning se ci sono mappature saltate
+      if (data.warning) {
+        toast.warning(data.warning)
+      }
 
       // Segna onboarding completo
       const done = await fetch('/api/user/onboarding-complete', {
@@ -434,6 +490,7 @@ export default function EventsPage() {
       const djson = await done.json().catch(() => ({}))
       if (!done.ok || !djson.ok) throw new Error(djson.error || 'Errore completamento onboarding')
 
+      toast.success('Mappature salvate, onboarding completato!')
       setPhase('TG_APP_READY')
     } catch (e: any) {
       setMappingError(e.message || 'Errore sconosciuto')
@@ -557,7 +614,7 @@ export default function EventsPage() {
                 Refresh gruppi
               </Button>
             </div>
-            <div className="rounded border p-4 mb-6">
+            <div className=" p-4 mb-6">
               {groupsLoading && <Alert variant="info">Caricamento gruppi...</Alert>}
               {groupsError && <Alert variant="error">{groupsError}</Alert>}
               {!groupsLoading && !groupsError && groups.length === 0 && (

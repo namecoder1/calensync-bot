@@ -59,6 +59,8 @@ async function postHandler(req: NextRequest, userId: string) {
 
   // Risolvi id delle tabelle figlie e inserisci
   let inserted = 0;
+  const skipped: string[] = [];
+  
   for (const inp of inputs) {
     if (!inp.calendarId || !inp.chatId) continue;
 
@@ -74,6 +76,7 @@ async function postHandler(req: NextRequest, userId: string) {
     const userCalendarId = calRows?.[0]?.id;
     if (!userCalendarId) {
       // calendar non selezionato/enabled → salta
+      skipped.push(`Calendario ${inp.calendarId} non trovato o non abilitato`);
       continue;
     }
 
@@ -119,6 +122,7 @@ async function postHandler(req: NextRequest, userId: string) {
 
     if (!userTelegramGroupId) {
       // gruppo non registrato → salta
+      skipped.push(`Gruppo ${inp.chatId}${inp.topicId ? `#${inp.topicId}` : ''} non trovato o non registrato`);
       continue;
     }
 
@@ -136,7 +140,14 @@ async function postHandler(req: NextRequest, userId: string) {
 
   // Aggiorna analytics: consideriamo settings_changed +1
   try { await updateDailyAnalytics(userId, { settings_changed: 1 }); } catch {}
-  return NextResponse.json({ ok: true, inserted });
+  
+  const response: any = { ok: true, inserted };
+  if (skipped.length > 0) {
+    response.skipped = skipped;
+    response.warning = `${inserted} mappature salvate, ${skipped.length} saltate`;
+  }
+  
+  return NextResponse.json(response);
 }
 
 export const POST = createTelegramAuthMiddleware(postHandler);
