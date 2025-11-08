@@ -2,6 +2,7 @@ import { google } from "googleapis";
 import { getGoogleTokens, getUserGoogleTokens } from "@/lib/google-tokens";
 import { NextRequest } from "next/server";
 import { isAuthorizedTelegramUser } from "@/lib/telegram-auth";
+import { createClient } from "@/supabase/server";
 
 // Evitiamo cache di Next su questo endpoint: vogliamo dati freschi
 export const dynamic = "force-dynamic";
@@ -64,8 +65,26 @@ export async function GET(req: NextRequest) {
     else if (envNames) targetNames = parseCsv(envNames);
   }
 
-  // Se non abbiamo né ids né names, manteniamo il comportamento precedente con un solo ID
-  if (!targetIds && !targetNames && !singleId) {
+  // Se non abbiamo ancora target espliciti e abbiamo un utente, proviamo a leggere i calendari selezionati da DB
+  if (!targetIds && !targetNames && userId) {
+    try {
+      const supabase = await createClient();
+      const { data, error } = await supabase
+        .from('user_calendars')
+        .select('calendar_id')
+        .eq('telegram_id', userId)
+        .eq('is_enabled', true);
+      if (!error) {
+        const ids = (data || []).map((r: any) => r.calendar_id).filter(Boolean);
+        if (ids.length > 0) targetIds = ids;
+      }
+    } catch (e) {
+      // Non-bloccante: continueremo con gli altri fallback
+    }
+  }
+
+  // Se non abbiamo né ids né names, manteniamo il comportamento precedente con un solo ID (solo per uso globale senza utente)
+  if (!targetIds && !targetNames && !singleId && !userId) {
     return new Response(JSON.stringify({ error: "Nessun calendario configurato. Definisci GOOGLE_CALENDAR_ID oppure GOOGLE_CALENDAR_IDS o GOOGLE_CALENDAR_NAMES." }), { status: 500 });
   }
 
@@ -103,8 +122,9 @@ export async function GET(req: NextRequest) {
     targetIds = [singleId];
   }
 
+  // Se dopo tutti i tentativi (incluso DB utente) non abbiamo targetIds, ritorniamo lista vuota per evitare errori in UI
   if (!targetIds || targetIds.length === 0) {
-    return new Response(JSON.stringify({ error: "Nessun calendario valido trovato (verifica nomi/ids)." }), { status: 400 });
+    return Response.json([]);
   }
 
   // Per ogni calendario, prendi eventi e defaultReminders, poi unisci

@@ -116,10 +116,18 @@ export default function EventsPage() {
   useEffect(() => {
     if (!mounted) return
 
+    // Evita flicker QR: attendi qualche ciclo di polling prima di decidere che NON è Telegram
+    // Se sdkTimeoutExceeded diventa true o webApp è null dopo mount e devMode false, mostriamo progress anziché QR immediatamente.
     if (!isTelegram) {
-      setPhase('WEB_QR')
-      setIsAuthorized(false)
-      return
+      // Se siamo appena montati e potenzialmente il SDK non ha ancora caricato, mostra uno stato di progress per ~500ms prima di QR.
+      // Useremo un timeout per dare tempo al polling.
+      const timer = setTimeout(() => {
+        if (!isTelegram) {
+          setPhase('WEB_QR')
+          setIsAuthorized(false)
+        }
+      }, 500)
+      return () => clearTimeout(timer)
     }
 
     if (!webApp && !telegramDevMode && !sdkTimeoutExceeded) {

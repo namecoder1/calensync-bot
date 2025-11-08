@@ -30,17 +30,18 @@ export function useGoogleEvents(enabled: boolean): UseGoogleEventsResult {
       setLoading(true);
       setError(null);
       setCalendarAuthIssue(null);
-      try {
-        // Verifica stato Google prima
-  const statusRes = await fetch(`/api/auth/status${user?.id ? `?userId=${user.id}` : ''}`);
-        const statusData = await statusRes.json();
-        if (!statusData.hasTokens) {
-          setCalendarAuthIssue("Connetti Google Calendar per sincronizzare i tuoi eventi.");
-          setEvents([]);
-          return;
-        }
-        // Carica eventi
-  const eventsRes = await fetch(`/api/calendar/events${user?.id ? `?userId=${user.id}` : ''}`);
+          try {
+            // Verifica stato Google prima (endpoint aggiornato)
+            const statusRes = await fetch(`/api/user/status${user?.id ? `?userId=${user.id}` : ''}`);
+            const statusData = await statusRes.json();
+            if (!statusRes.ok || !statusData?.hasTokens) {
+              const msg = statusData?.error || "Connetti Google Calendar per sincronizzare i tuoi eventi.";
+              setCalendarAuthIssue(msg);
+              setEvents([]);
+              return;
+            }
+            // Carica eventi (usa l'utente per usare i calendari selezionati lato server)
+            const eventsRes = await fetch(`/api/calendar/events${user?.id ? `?userId=${user.id}` : ''}`);
         if (!eventsRes.ok) {
           let msg = "Errore nel recupero degli eventi";
           try {
